@@ -4,4 +4,4 @@ if exist ..\tccalc.exe (
     del ..\tccalc.exe
 )
 
-gcc main.c -o ..\tccalc.exe
+gcc tccalc.c -o ..\tccalc.exe
