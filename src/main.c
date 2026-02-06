@@ -30,33 +30,82 @@ static int tc_to_frames(char *s, int nfields) {
 }
 
 int main(int argc, char **argv) {
-    if (argc != 3) {
-        printf("Usage: tcdiff timecode timecode\n");
+    if (argc < 2) {
+        printf("Usage: tccalc timecode [+ or -] timecode\n");
         return 1;
     }
 
-    int n1 = count_fields(argv[1]);
-    int n2 = count_fields(argv[2]);
+    /* Concatenate all args into buf */
+    char buf[256];
+    char *dst = buf;
+    for (int i = 1; i < argc; i++) {
+        char *src = argv[i];
+        while (*src)
+            *dst++ = *src++;
+    }
+    *dst = '\0';
+
+    /* Find operator (+ or -) */
+    char *op = 0;
+    for (char *p = buf; *p; p++) {
+        if (*p == '+' || *p == '-') {
+            op = p;
+            break;
+        }
+    }
+
+    char *left, *right;
+    char op_char = '-';
+
+    if (op) {
+        op_char = *op;
+        *op = '\0';
+        left = buf;
+        right = op + 1;
+    } else if (argc == 3) {
+        /* Old style: tccalc TC1 TC2 */
+        left = argv[1];
+        right = argv[2];
+    } else {
+        printf("Usage: tccalc timecode [+ or -] timecode\n");
+        return 1;
+    }
+
+    int n1 = count_fields(left);
+    int n2 = count_fields(right);
     int nmax = n1 > n2 ? n1 : n2;
 
-    int a = tc_to_frames(argv[1], n1);
-    int b = tc_to_frames(argv[2], n2);
-    int diff = a - b;
-    if (diff < 0)
-        diff = -diff;
+    int a = tc_to_frames(left, n1);
+    int b = tc_to_frames(right, n2);
 
-    int ff = diff % 30;
-    diff /= 30;
-    int ss = diff % 60;
-    diff /= 60;
-    int mm = diff % 60;
-    int hh = diff / 60;
+    int result;
+    if (op_char == '+')
+        result = a + b;
+    else
+        result = a - b;
+    if (result < 0)
+        result = -result;
 
-    if (nmax == 4)
+    int ff = result % 30;
+    result /= 30;
+    int ss = result % 60;
+    result /= 60;
+    int mm = result % 60;
+    int hh = result / 60;
+
+    /* Expand output if result overflows input precision */
+    if (hh > 0 && nmax < 4)
+        nmax = 4;
+    else if (mm > 0 && nmax < 3)
+        nmax = 3;
+    else if (ss > 0 && nmax < 2)
+        nmax = 2;
+
+    if (nmax >= 4)
         printf("%02d;%02d;%02d;%02d\n", hh, mm, ss, ff);
-    else if (nmax == 3)
+    else if (nmax >= 3)
         printf("%02d;%02d;%02d\n", mm, ss, ff);
-    else if (nmax == 2)
+    else if (nmax >= 2)
         printf("%02d;%02d\n", ss, ff);
     else
         printf("%02d\n", ff);
